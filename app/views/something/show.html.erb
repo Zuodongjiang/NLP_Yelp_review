@@ -1,0 +1,107 @@
+<div class="container-fluid">
+	<div class="row">
+		<div class="title" style="margin-left: 20%; font-size: 22px; font-weight: bolder;">
+			<%= @record.first["category"] %> Restaurants in <%= @record.first["city"] %>
+			<% @record.each do |rec| %>
+				<%#= rec["pos_rev"] %>
+				<%#= JSON.parse(rec["neg_rev"]).keys.first(3) %>
+			<% end %>
+		</div>
+	</div>
+	<div class="row">
+		<div id='map' style="margin-left: 20%; margin-top: 3%;"></div>
+	</div>
+	<div class="row">
+		<div class="col"></div>
+		<div class="col-md-3">
+			<div class="button">
+				<%= link_to "Start Over", new_something_path, {:class=>"btn btn-outline-primary button", style: "width: 40%;"} %>
+			</div>
+		</div>
+	</div>
+</div>
+
+<script type="text/javascript">
+
+	var popByZip = {},
+		posByZip = {},
+		negByZip = {};
+
+	<% @record.each do |rec| %>
+		popByZip[<%= rec["zip"] %>] = (<%= rec["pop_score"].nil? ? -999 : rec["pop_score"] %>).toFixed(2)
+		if (popByZip[<%= rec["zip"] %>] == -999.00) {
+		   popByZip[<%= rec["zip"] %>] = "Data Not Available"
+		}
+		posByZip[<%= rec["zip"] %>] = Object.keys(JSON.parse("<%= rec["pos_rev"] %>".replace(/&quot;/g,'"'))).slice(0,3)
+		negByZip[<%= rec["zip"] %>] = Object.keys(JSON.parse("<%= rec["neg_rev"] %>".replace(/&quot;/g,'"'))).slice(0,3)
+	<% end %>;
+
+
+	var w = 800,
+		h = 600,
+		h_rect = h/20,
+		margins = {top: 0, bottom: 0, left: 0, right: 0};
+
+	var map = d3.select('#map')
+				.append('svg')
+				.attr('width', w)
+				.attr('height', h)
+				.attr('transform', 'translate(' + margins.left + ',' + margins.top + ')');
+
+	var city = "<%= @record.first["city"] %>";
+
+	if (city == 'Cleveland'){
+		features = Cleveland_json.features;
+		rotate = [81.7, 0];
+		center = [0, 41.4];
+		scale = 80000;
+		translate = [w*0.6,h*0.6];
+		pins = Cleveland_pins_json.features;
+	} else if (city == 'Phoenix') {
+		features = Phoenix_json.features;
+		rotate = [111, 0];
+		center = [0, 33];
+		scale = 65000;
+		translate = [w * 1.9 ,h * 1.5];
+		pins = Phoenix_pins_json.features;
+	}
+
+	var g = map.append('g');
+
+	var albersProjection = d3.geoAlbers()
+							  .scale(scale)
+							  .rotate(rotate)
+							  .center(center)
+							  .translate(translate);
+
+	var geoPath = d3.geoPath()
+    				.projection(albersProjection);
+
+    g.selectAll( "path" )
+	  .data(features)
+	  .enter()
+	  .append( "path" )
+	  .attr( "fill", "#46C7C7" )
+	  .attr( "d", geoPath );
+
+	var tip = d3.tip()
+				.attr('class', 'd3-tip')
+				.offset([-10, 10])
+				.direction('n')
+				.html(function(d){
+					return ('Zipcode: ' + d.zip + '<br/>Category: ' + "<%= @record.first["category"] %>" + '<br/>Popularity Score: ' + popByZip[d.zip] + '<br/>Top three posivite key words: ' + posByZip[d.zip]) + '<br/>Top three negavite key words: ' + negByZip[d.zip];
+				});
+	map.call(tip);
+
+	var g_pins = map.append('g');
+
+	g_pins.selectAll( "path" )
+		  .data(pins)
+		  .enter()
+		  .append( "path" )
+		  .attr( "d", geoPath )
+		  .attr('fill', '#800000')
+		  .on('mouseover', tip.show)
+		  .on('mouseout', tip.hide);
+
+</script>
